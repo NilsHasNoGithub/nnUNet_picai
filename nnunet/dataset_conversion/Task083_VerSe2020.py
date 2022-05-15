@@ -19,8 +19,10 @@ from copy import deepcopy
 from multiprocessing.pool import Pool
 
 from batchgenerators.utilities.file_and_folder_operations import *
-from nnunet.dataset_conversion.Task056_VerSe2019 import check_if_all_in_good_orientation, \
-    print_unique_labels_and_their_volumes
+from nnunet.dataset_conversion.Task056_VerSe2019 import (
+    check_if_all_in_good_orientation,
+    print_unique_labels_and_their_volumes,
+)
 from nnunet.paths import nnUNet_raw_data, preprocessing_output_dir
 from nnunet.utilities.image_reorientation import reorient_all_images_in_folder_to_ras
 
@@ -33,27 +35,31 @@ def manually_change_plans():
 
     # let's change the network topology for lowres and fullres
     new_plans = deepcopy(original_plans)
-    stages = len(new_plans['plans_per_stage'])
+    stages = len(new_plans["plans_per_stage"])
     for s in range(stages):
-        new_plans['plans_per_stage'][s]['patch_size'] = (224, 160, 160)
-        new_plans['plans_per_stage'][s]['pool_op_kernel_sizes'] = [[2, 2, 2],
-                                                                   [2, 2, 2],
-                                                                   [2, 2, 2],
-                                                                   [2, 2, 2],
-                                                                   [2, 2, 2]] # bottleneck of 7x5x5
-        new_plans['plans_per_stage'][s]['conv_kernel_sizes'] = [[3, 3, 3],
-                                                                [3, 3, 3],
-                                                                [3, 3, 3],
-                                                                [3, 3, 3],
-                                                                [3, 3, 3],
-                                                                [3, 3, 3]]
+        new_plans["plans_per_stage"][s]["patch_size"] = (224, 160, 160)
+        new_plans["plans_per_stage"][s]["pool_op_kernel_sizes"] = [
+            [2, 2, 2],
+            [2, 2, 2],
+            [2, 2, 2],
+            [2, 2, 2],
+            [2, 2, 2],
+        ]  # bottleneck of 7x5x5
+        new_plans["plans_per_stage"][s]["conv_kernel_sizes"] = [
+            [3, 3, 3],
+            [3, 3, 3],
+            [3, 3, 3],
+            [3, 3, 3],
+            [3, 3, 3],
+            [3, 3, 3],
+        ]
     save_pickle(new_plans, join(pp_out_folder, "custom_plans_3D.pkl"))
 
 
 if __name__ == "__main__":
     ### First we create a nnunet dataset from verse. After this the images will be all willy nilly in their
     # orientation because that's how VerSe comes
-    base = '/home/fabian/Downloads/osfstorage-archive/'
+    base = "/home/fabian/Downloads/osfstorage-archive/"
 
     task_id = 83
     task_name = "VerSe2020"
@@ -70,9 +76,13 @@ if __name__ == "__main__":
 
     train_patient_names = []
 
-    for t in subdirs(join(base, 'training_data'), join=False):
-        train_patient_names_here = [i[:-len("_seg.nii.gz")] for i in
-                                    subfiles(join(base, "training_data", t), join=False, suffix="_seg.nii.gz")]
+    for t in subdirs(join(base, "training_data"), join=False):
+        train_patient_names_here = [
+            i[: -len("_seg.nii.gz")]
+            for i in subfiles(
+                join(base, "training_data", t), join=False, suffix="_seg.nii.gz"
+            )
+        ]
         for p in train_patient_names_here:
             curr = join(base, "training_data", t)
             label_file = join(curr, p + "_seg.nii.gz")
@@ -83,24 +93,27 @@ if __name__ == "__main__":
         train_patient_names += train_patient_names_here
 
     json_dict = OrderedDict()
-    json_dict['name'] = "VerSe2020"
-    json_dict['description'] = "VerSe2020"
-    json_dict['tensorImageSize'] = "4D"
-    json_dict['reference'] = "see challenge website"
-    json_dict['licence'] = "see challenge website"
-    json_dict['release'] = "0.0"
-    json_dict['modality'] = {
+    json_dict["name"] = "VerSe2020"
+    json_dict["description"] = "VerSe2020"
+    json_dict["tensorImageSize"] = "4D"
+    json_dict["reference"] = "see challenge website"
+    json_dict["licence"] = "see challenge website"
+    json_dict["release"] = "0.0"
+    json_dict["modality"] = {
         "0": "CT",
     }
-    json_dict['labels'] = {i: str(i) for i in range(29)}
+    json_dict["labels"] = {i: str(i) for i in range(29)}
 
-    json_dict['numTraining'] = len(train_patient_names)
-    json_dict['numTest'] = []
-    json_dict['training'] = [
-        {'image': "./imagesTr/%s.nii.gz" % i.split("/")[-1], "label": "./labelsTr/%s.nii.gz" % i.split("/")[-1]} for i
-        in
-        train_patient_names]
-    json_dict['test'] = ["./imagesTs/%s.nii.gz" % i.split("/")[-1] for i in []]
+    json_dict["numTraining"] = len(train_patient_names)
+    json_dict["numTest"] = []
+    json_dict["training"] = [
+        {
+            "image": "./imagesTr/%s.nii.gz" % i.split("/")[-1],
+            "label": "./labelsTr/%s.nii.gz" % i.split("/")[-1],
+        }
+        for i in train_patient_names
+    ]
+    json_dict["test"] = ["./imagesTs/%s.nii.gz" % i.split("/")[-1] for i in []]
 
     save_json(json_dict, os.path.join(out_base, "dataset.json"))
 
@@ -111,12 +124,15 @@ if __name__ == "__main__":
     reorient_all_images_in_folder_to_ras(labelstr, 16)
 
     # sanity check
-    check_if_all_in_good_orientation(imagestr, labelstr, join(out_base, 'sanitycheck'))
+    check_if_all_in_good_orientation(imagestr, labelstr, join(out_base, "sanitycheck"))
     # looks good to me - proceed
 
     # check the volumes of the vertebrae
     p = Pool(6)
-    _ = p.starmap(print_unique_labels_and_their_volumes, zip(subfiles(labelstr, suffix='.nii.gz'), [1000] * 113))
+    _ = p.starmap(
+        print_unique_labels_and_their_volumes,
+        zip(subfiles(labelstr, suffix=".nii.gz"), [1000] * 113),
+    )
 
     # looks good
 

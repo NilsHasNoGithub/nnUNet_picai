@@ -110,7 +110,9 @@ def checksum(file: PathLike, algorithm: str = "sha256", chunk_size: int = 4096) 
     """Computes the checksum of a file using a hashing algorithm"""
     file = Path(file)
     if file.exists() and not file.is_file():
-        raise ValueError(f"Checksum can be computed only for files, {file} is not a file")
+        raise ValueError(
+            f"Checksum can be computed only for files, {file} is not a file"
+        )
 
     h = hashlib.new(algorithm)
     with file.open("rb") as fp:

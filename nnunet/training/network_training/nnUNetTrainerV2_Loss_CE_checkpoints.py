@@ -13,36 +13,97 @@
 #    limitations under the License.
 
 
-from nnunet.training.network_training.nnUNet_variants.loss_function.nnUNetTrainerV2_Loss_CE import nnUNetTrainerV2_Loss_CE
+from nnunet.training.network_training.nnUNet_variants.loss_function.nnUNetTrainerV2_Loss_CE import (
+    nnUNetTrainerV2_Loss_CE,
+)
+
 
 class nnUNetTrainerV2_Loss_CE_checkpoints(nnUNetTrainerV2_Loss_CE):
-    def __init__(self, plans_file, fold, output_folder=None, dataset_directory=None, batch_dice=True, stage=None,
-                 unpack_data=True, deterministic=True, fp16=False):
-        super().__init__(plans_file, fold, output_folder, dataset_directory, batch_dice, stage, unpack_data,
-                         deterministic, fp16)
+    def __init__(
+        self,
+        plans_file,
+        fold,
+        output_folder=None,
+        dataset_directory=None,
+        batch_dice=True,
+        stage=None,
+        unpack_data=True,
+        deterministic=True,
+        fp16=False,
+    ):
+        super().__init__(
+            plans_file,
+            fold,
+            output_folder,
+            dataset_directory,
+            batch_dice,
+            stage,
+            unpack_data,
+            deterministic,
+            fp16,
+        )
         self.save_latest_only = False
 
 
 class nnUNetTrainerV2_Loss_CE_checkpoints2(nnUNetTrainerV2_Loss_CE_checkpoints):
     """
-    Each run is stored in a folder with the training class name in it. This simply creates a new folder, to allow investigating 
-    the variability between restarts. 
+    Each run is stored in a folder with the training class name in it. This simply creates a new folder, to allow investigating
+    the variability between restarts.
     """
-    def __init__(self, plans_file, fold, output_folder=None, dataset_directory=None, batch_dice=True, stage=None,
-                 unpack_data=True, deterministic=True, fp16=False):
-        super().__init__(plans_file, fold, output_folder, dataset_directory, batch_dice, stage, unpack_data,
-                         deterministic, fp16)
-        pass
 
+    def __init__(
+        self,
+        plans_file,
+        fold,
+        output_folder=None,
+        dataset_directory=None,
+        batch_dice=True,
+        stage=None,
+        unpack_data=True,
+        deterministic=True,
+        fp16=False,
+    ):
+        super().__init__(
+            plans_file,
+            fold,
+            output_folder,
+            dataset_directory,
+            batch_dice,
+            stage,
+            unpack_data,
+            deterministic,
+            fp16,
+        )
+        pass
 
 
 class nnUNetTrainerV2_Loss_CE_checkpoints3(nnUNetTrainerV2_Loss_CE_checkpoints):
     """
-    Each run is stored in a folder with the training class name in it. This simply creates a new folder, to allow investigating 
-    the variability between restarts. 
+    Each run is stored in a folder with the training class name in it. This simply creates a new folder, to allow investigating
+    the variability between restarts.
     """
-    def __init__(self, plans_file, fold, output_folder=None, dataset_directory=None, batch_dice=True, stage=None,
-                 unpack_data=True, deterministic=True, fp16=False):
-        super().__init__(plans_file, fold, output_folder, dataset_directory, batch_dice, stage, unpack_data,
-                         deterministic, fp16)
+
+    def __init__(
+        self,
+        plans_file,
+        fold,
+        output_folder=None,
+        dataset_directory=None,
+        batch_dice=True,
+        stage=None,
+        unpack_data=True,
+        deterministic=True,
+        fp16=False,
+    ):
+        super().__init__(
+            plans_file,
+            fold,
+            output_folder,
+            dataset_directory,
+            batch_dice,
+            stage,
+            unpack_data,
+            deterministic,
+            fp16,
+        )
         pass

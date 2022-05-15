@@ -6,7 +6,10 @@ from torch.cuda.amp import GradScaler, autocast
 from torch.nn import Identity
 
 from nnunet.network_architecture.generic_UNet import Upsample
-from nnunet.network_architecture.generic_modular_UNet import PlainConvUNetDecoder, get_default_network_config
+from nnunet.network_architecture.generic_modular_UNet import (
+    PlainConvUNetDecoder,
+    get_default_network_config,
+)
 from nnunet.network_architecture.neural_network import SegmentationNetwork
 from nnunet.training.loss_functions.dice_loss import DC_and_CE_loss
 from torch import nn
@@ -25,7 +28,7 @@ class BasicPreActResidualBlock(nn.Module):
         super().__init__()
 
         self.kernel_size = kernel_size
-        props['conv_op_kwargs']['stride'] = 1
+        props["conv_op_kwargs"]["stride"] = 1
 
         self.stride = stride
         self.props = props
@@ -33,29 +36,43 @@ class BasicPreActResidualBlock(nn.Module):
         self.in_planes = in_planes
 
         if stride is not None:
-            kwargs_conv1 = deepcopy(props['conv_op_kwargs'])
-            kwargs_conv1['stride'] = stride
+            kwargs_conv1 = deepcopy(props["conv_op_kwargs"])
+            kwargs_conv1["stride"] = stride
         else:
-            kwargs_conv1 = props['conv_op_kwargs']
+            kwargs_conv1 = props["conv_op_kwargs"]
 
-        self.norm1 = props['norm_op'](in_planes, **props['norm_op_kwargs'])
-        self.nonlin1 = props['nonlin'](**props['nonlin_kwargs'])
-        self.conv1 = props['conv_op'](in_planes, out_planes, kernel_size, padding=[(i - 1) // 2 for i in kernel_size],
-                                      **kwargs_conv1)
+        self.norm1 = props["norm_op"](in_planes, **props["norm_op_kwargs"])
+        self.nonlin1 = props["nonlin"](**props["nonlin_kwargs"])
+        self.conv1 = props["conv_op"](
+            in_planes,
+            out_planes,
+            kernel_size,
+            padding=[(i - 1) // 2 for i in kernel_size],
+            **kwargs_conv1
+        )
 
-        if props['dropout_op_kwargs']['p'] != 0:
-            self.dropout = props['dropout_op'](**props['dropout_op_kwargs'])
+        if props["dropout_op_kwargs"]["p"] != 0:
+            self.dropout = props["dropout_op"](**props["dropout_op_kwargs"])
         else:
             self.dropout = Identity()
 
-        self.norm2 = props['norm_op'](out_planes, **props['norm_op_kwargs'])
-        self.nonlin2 = props['nonlin'](**props['nonlin_kwargs'])
-        self.conv2 = props['conv_op'](out_planes, out_planes, kernel_size, padding=[(i - 1) // 2 for i in kernel_size],
-                                      **props['conv_op_kwargs'])
+        self.norm2 = props["norm_op"](out_planes, **props["norm_op_kwargs"])
+        self.nonlin2 = props["nonlin"](**props["nonlin_kwargs"])
+        self.conv2 = props["conv_op"](
+            out_planes,
+            out_planes,
+            kernel_size,
+            padding=[(i - 1) // 2 for i in kernel_size],
+            **props["conv_op_kwargs"]
+        )
 
-        if (self.stride is not None and any((i != 1 for i in self.stride))) or (in_planes != out_planes):
+        if (self.stride is not None and any((i != 1 for i in self.stride))) or (
+            in_planes != out_planes
+        ):
             stride_here = stride if stride is not None else 1
-            self.downsample_skip = nn.Sequential(props['conv_op'](in_planes, out_planes, 1, stride_here, bias=False))
+            self.downsample_skip = nn.Sequential(
+                props["conv_op"](in_planes, out_planes, 1, stride_here, bias=False)
+            )
         else:
             self.downsample_skip = None
 
@@ -70,7 +87,7 @@ class BasicPreActResidualBlock(nn.Module):
         # norm nonlin conv
         out = self.conv1(out)
 
-        out = self.dropout(out) # this does nothing if props['dropout_op_kwargs'] == 0
+        out = self.dropout(out)  # this does nothing if props['dropout_op_kwargs'] == 0
 
         # norm nonlin conv
         out = self.conv2(self.nonlin2(self.norm2(out)))
@@ -81,15 +98,35 @@ class BasicPreActResidualBlock(nn.Module):
 
 
 class PreActResidualLayer(nn.Module):
-    def __init__(self, input_channels, output_channels, kernel_size, network_props, num_blocks, first_stride=None):
+    def __init__(
+        self,
+        input_channels,
+        output_channels,
+        kernel_size,
+        network_props,
+        num_blocks,
+        first_stride=None,
+    ):
         super().__init__()
 
-        network_props = deepcopy(network_props)  # network_props is a dict and mutable, so we deepcopy to be safe.
+        network_props = deepcopy(
+            network_props
+        )  # network_props is a dict and mutable, so we deepcopy to be safe.
 
         self.convs = nn.Sequential(
-            BasicPreActResidualBlock(input_channels, output_channels, kernel_size, network_props, first_stride),
-            *[BasicPreActResidualBlock(output_channels, output_channels, kernel_size, network_props) for _ in
-              range(num_blocks - 1)]
+            BasicPreActResidualBlock(
+                input_channels,
+                output_channels,
+                kernel_size,
+                network_props,
+                first_stride,
+            ),
+            *[
+                BasicPreActResidualBlock(
+                    output_channels, output_channels, kernel_size, network_props
+                )
+                for _ in range(num_blocks - 1)
+            ]
         )
 
     def forward(self, x):
@@ -97,9 +134,19 @@ class PreActResidualLayer(nn.Module):
 
 
 class PreActResidualUNetEncoder(nn.Module):
-    def __init__(self, input_channels, base_num_features, num_blocks_per_stage, feat_map_mul_on_downscale,
-                 pool_op_kernel_sizes, conv_kernel_sizes, props, default_return_skips=True,
-                 max_num_features=480, pool_type: str = 'conv'):
+    def __init__(
+        self,
+        input_channels,
+        base_num_features,
+        num_blocks_per_stage,
+        feat_map_mul_on_downscale,
+        pool_op_kernel_sizes,
+        conv_kernel_sizes,
+        props,
+        default_return_skips=True,
+        max_num_features=480,
+        pool_type: str = "conv",
+    ):
         """
         Following UNet building blocks can be added by utilizing the properties this class exposes (TODO)
 
@@ -136,11 +183,15 @@ class PreActResidualUNetEncoder(nn.Module):
 
         self.num_blocks_per_stage = num_blocks_per_stage  # decoder may need this
 
-        self.initial_conv = props['conv_op'](input_channels, base_num_features, 3, padding=1, **props['conv_op_kwargs'])
+        self.initial_conv = props["conv_op"](
+            input_channels, base_num_features, 3, padding=1, **props["conv_op_kwargs"]
+        )
 
         current_input_features = base_num_features
         for stage in range(num_stages):
-            current_output_features = min(base_num_features * feat_map_mul_on_downscale ** stage, max_num_features)
+            current_output_features = min(
+                base_num_features * feat_map_mul_on_downscale**stage, max_num_features
+            )
             current_kernel_size = conv_kernel_sizes[stage]
 
             current_pool_kernel_size = pool_op_kernel_sizes[stage]
@@ -149,10 +200,18 @@ class PreActResidualUNetEncoder(nn.Module):
             else:
                 pool_kernel_size_for_conv = current_pool_kernel_size
 
-            current_stage = PreActResidualLayer(current_input_features, current_output_features, current_kernel_size, props,
-                                                self.num_blocks_per_stage[stage], pool_kernel_size_for_conv)
+            current_stage = PreActResidualLayer(
+                current_input_features,
+                current_output_features,
+                current_kernel_size,
+                props,
+                self.num_blocks_per_stage[stage],
+                pool_kernel_size_for_conv,
+            )
             if pool_op is not None:
-                current_stage = nn.Sequential(pool_op(current_pool_kernel_size), current_stage)
+                current_stage = nn.Sequential(
+                    pool_op(current_pool_kernel_size), current_stage
+                )
 
             self.stages.append(current_stage)
             self.stage_output_features.append(current_output_features)
@@ -166,22 +225,22 @@ class PreActResidualUNetEncoder(nn.Module):
         self.output_features = current_input_features
 
     def _handle_pool(self, pool_type):
-        assert pool_type in ['conv', 'avg', 'max']
-        if pool_type == 'avg':
-            if self.props['conv_op'] == nn.Conv2d:
+        assert pool_type in ["conv", "avg", "max"]
+        if pool_type == "avg":
+            if self.props["conv_op"] == nn.Conv2d:
                 pool_op = nn.AvgPool2d
-            elif self.props['conv_op'] == nn.Conv3d:
+            elif self.props["conv_op"] == nn.Conv3d:
                 pool_op = nn.AvgPool3d
             else:
                 raise NotImplementedError
-        elif pool_type == 'max':
-            if self.props['conv_op'] == nn.Conv2d:
+        elif pool_type == "max":
+            if self.props["conv_op"] == nn.Conv2d:
                 pool_op = nn.MaxPool2d
-            elif self.props['conv_op'] == nn.Conv3d:
+            elif self.props["conv_op"] == nn.Conv3d:
                 pool_op = nn.MaxPool3d
             else:
                 raise NotImplementedError
-        elif pool_type == 'conv':
+        elif pool_type == "conv":
             pool_op = None
         else:
             raise ValueError
@@ -212,30 +271,47 @@ class PreActResidualUNetEncoder(nn.Module):
             return x
 
     @staticmethod
-    def compute_approx_vram_consumption(patch_size, base_num_features, max_num_features,
-                                        num_modalities, pool_op_kernel_sizes, num_conv_per_stage_encoder,
-                                        feat_map_mul_on_downscale, batch_size):
+    def compute_approx_vram_consumption(
+        patch_size,
+        base_num_features,
+        max_num_features,
+        num_modalities,
+        pool_op_kernel_sizes,
+        num_conv_per_stage_encoder,
+        feat_map_mul_on_downscale,
+        batch_size,
+    ):
         npool = len(pool_op_kernel_sizes) - 1
 
         current_shape = np.array(patch_size)
 
-        tmp = (num_conv_per_stage_encoder[0] * 2 + 1) * np.prod(current_shape) * base_num_features \
-              + num_modalities * np.prod(current_shape)
+        tmp = (num_conv_per_stage_encoder[0] * 2 + 1) * np.prod(
+            current_shape
+        ) * base_num_features + num_modalities * np.prod(current_shape)
 
         num_feat = base_num_features
 
         for p in range(1, npool + 1):
             current_shape = current_shape / np.array(pool_op_kernel_sizes[p])
             num_feat = min(num_feat * feat_map_mul_on_downscale, max_num_features)
-            num_convs = num_conv_per_stage_encoder[p] * 2 + 1 # + 1 for conv in skip in first block
+            num_convs = (
+                num_conv_per_stage_encoder[p] * 2 + 1
+            )  # + 1 for conv in skip in first block
             print(p, num_feat, num_convs, current_shape)
             tmp += num_convs * np.prod(current_shape) * num_feat
         return tmp * batch_size
 
 
 class PreActResidualUNetDecoder(nn.Module):
-    def __init__(self, previous, num_classes, num_blocks_per_stage=None, network_props=None, deep_supervision=False,
-                 upscale_logits=False):
+    def __init__(
+        self,
+        previous,
+        num_classes,
+        num_blocks_per_stage=None,
+        network_props=None,
+        deep_supervision=False,
+        upscale_logits=False,
+    ):
         super(PreActResidualUNetDecoder, self).__init__()
         self.num_classes = num_classes
         self.deep_supervision = deep_supervision
@@ -252,14 +328,17 @@ class PreActResidualUNetDecoder(nn.Module):
         else:
             self.props = network_props
 
-        if self.props['conv_op'] == nn.Conv2d:
+        if self.props["conv_op"] == nn.Conv2d:
             transpconv = nn.ConvTranspose2d
             upsample_mode = "bilinear"
-        elif self.props['conv_op'] == nn.Conv3d:
+        elif self.props["conv_op"] == nn.Conv3d:
             transpconv = nn.ConvTranspose3d
             upsample_mode = "trilinear"
         else:
-            raise ValueError("unknown convolution dimensionality, conv op: %s" % str(self.props['conv_op']))
+            raise ValueError(
+                "unknown convolution dimensionality, conv op: %s"
+                % str(self.props["conv_op"])
+            )
 
         if num_blocks_per_stage is None:
             num_blocks_per_stage = previous.num_blocks_per_stage[:-1][::-1]
@@ -270,7 +349,9 @@ class PreActResidualUNetDecoder(nn.Module):
         self.stage_output_features = previous_stage_output_features
         self.stage_conv_op_kernel_size = previous_stage_conv_op_kernel_size
 
-        num_stages = len(previous_stages) - 1  # we have one less as the first stage here is what comes after the
+        num_stages = (
+            len(previous_stages) - 1
+        )  # we have one less as the first stage here is what comes after the
         # bottleneck
 
         self.tus = []
@@ -278,33 +359,69 @@ class PreActResidualUNetDecoder(nn.Module):
         self.deep_supervision_outputs = []
 
         # only used for upsample_logits
-        cum_upsample = np.cumprod(np.vstack(self.stage_pool_kernel_size), axis=0).astype(int)
+        cum_upsample = np.cumprod(
+            np.vstack(self.stage_pool_kernel_size), axis=0
+        ).astype(int)
 
         for i, s in enumerate(np.arange(num_stages)[::-1]):
             features_below = previous_stage_output_features[s + 1]
             features_skip = previous_stage_output_features[s]
 
-            self.tus.append(transpconv(features_below, features_skip, previous_stage_pool_kernel_size[s + 1],
-                                       previous_stage_pool_kernel_size[s + 1], bias=False))
+            self.tus.append(
+                transpconv(
+                    features_below,
+                    features_skip,
+                    previous_stage_pool_kernel_size[s + 1],
+                    previous_stage_pool_kernel_size[s + 1],
+                    bias=False,
+                )
+            )
             # after we tu we concat features so now we have 2xfeatures_skip
-            self.stages.append(PreActResidualLayer(2 * features_skip, features_skip, previous_stage_conv_op_kernel_size[s],
-                                                   self.props, num_blocks_per_stage[i], None))
+            self.stages.append(
+                PreActResidualLayer(
+                    2 * features_skip,
+                    features_skip,
+                    previous_stage_conv_op_kernel_size[s],
+                    self.props,
+                    num_blocks_per_stage[i],
+                    None,
+                )
+            )
 
             if deep_supervision and s != 0:
-                norm = self.props['norm_op'](features_skip, **self.props['norm_op_kwargs'])
-                nonlin = self.props['nonlin'](**self.props['nonlin_kwargs'])
-                seg_layer = self.props['conv_op'](features_skip, num_classes, 1, 1, 0, 1, 1, bias=True)
+                norm = self.props["norm_op"](
+                    features_skip, **self.props["norm_op_kwargs"]
+                )
+                nonlin = self.props["nonlin"](**self.props["nonlin_kwargs"])
+                seg_layer = self.props["conv_op"](
+                    features_skip, num_classes, 1, 1, 0, 1, 1, bias=True
+                )
                 if upscale_logits:
-                    upsample = Upsample(scale_factor=cum_upsample[s], mode=upsample_mode)
-                    self.deep_supervision_outputs.append(nn.Sequential(norm, nonlin, seg_layer, upsample))
+                    upsample = Upsample(
+                        scale_factor=cum_upsample[s], mode=upsample_mode
+                    )
+                    self.deep_supervision_outputs.append(
+                        nn.Sequential(norm, nonlin, seg_layer, upsample)
+                    )
                 else:
-                    self.deep_supervision_outputs.append(nn.Sequential(norm, nonlin, seg_layer))
+                    self.deep_supervision_outputs.append(
+                        nn.Sequential(norm, nonlin, seg_layer)
+                    )
 
-        self.segmentation_conv_norm = self.props['norm_op'](features_skip, **self.props['norm_op_kwargs'])
-        self.segmentation_conv_nonlin = self.props['nonlin'](**self.props['nonlin_kwargs'])
-        self.segmentation_output = self.props['conv_op'](features_skip, num_classes, 1, 1, 0, 1, 1, bias=True)
-        self.segmentation_output = nn.Sequential(self.segmentation_conv_norm, self.segmentation_conv_nonlin,
-                                                 self.segmentation_output)
+        self.segmentation_conv_norm = self.props["norm_op"](
+            features_skip, **self.props["norm_op_kwargs"]
+        )
+        self.segmentation_conv_nonlin = self.props["nonlin"](
+            **self.props["nonlin_kwargs"]
+        )
+        self.segmentation_output = self.props["conv_op"](
+            features_skip, num_classes, 1, 1, 0, 1, 1, bias=True
+        )
+        self.segmentation_output = nn.Sequential(
+            self.segmentation_conv_norm,
+            self.segmentation_conv_nonlin,
+            self.segmentation_output,
+        )
 
         self.tus = nn.ModuleList(self.tus)
         self.stages = nn.ModuleList(self.stages)
@@ -330,15 +447,24 @@ class PreActResidualUNetDecoder(nn.Module):
 
         if self.deep_supervision:
             seg_outputs.append(segmentation)
-            return seg_outputs[::-1]  # seg_outputs are ordered so that the seg from the highest layer is first, the seg from
+            return seg_outputs[
+                ::-1
+            ]  # seg_outputs are ordered so that the seg from the highest layer is first, the seg from
             # the bottleneck of the UNet last
         else:
             return segmentation
 
     @staticmethod
-    def compute_approx_vram_consumption(patch_size, base_num_features, max_num_features,
-                                        num_classes, pool_op_kernel_sizes, num_blocks_per_stage_decoder,
-                                        feat_map_mul_on_downscale, batch_size):
+    def compute_approx_vram_consumption(
+        patch_size,
+        base_num_features,
+        max_num_features,
+        num_classes,
+        pool_op_kernel_sizes,
+        num_blocks_per_stage_decoder,
+        feat_map_mul_on_downscale,
+        batch_size,
+    ):
         """
         This only applies for num_conv_per_stage and convolutional_upsampling=True
         not real vram consumption. just a constant term to which the vram consumption will be approx proportional
@@ -352,14 +478,18 @@ class PreActResidualUNetDecoder(nn.Module):
         npool = len(pool_op_kernel_sizes) - 1
 
         current_shape = np.array(patch_size)
-        tmp = (num_blocks_per_stage_decoder[-1] * 2 + 1) * np.prod(current_shape) * base_num_features + num_classes * np.prod(current_shape)
+        tmp = (num_blocks_per_stage_decoder[-1] * 2 + 1) * np.prod(
+            current_shape
+        ) * base_num_features + num_classes * np.prod(current_shape)
 
         num_feat = base_num_features
 
         for p in range(1, npool):
             current_shape = current_shape / np.array(pool_op_kernel_sizes[p])
             num_feat = min(num_feat * feat_map_mul_on_downscale, max_num_features)
-            num_convs = num_blocks_per_stage_decoder[-(p + 1)] * 2 + 1 + 1 # +1 for transpconv and +1 for conv in skip
+            num_convs = (
+                num_blocks_per_stage_decoder[-(p + 1)] * 2 + 1 + 1
+            )  # +1 for transpconv and +1 for conv in skip
             print(p, num_feat, num_convs, current_shape)
             tmp += num_convs * np.prod(current_shape) * num_feat
 
@@ -370,18 +500,45 @@ class PreActResidualUNet(SegmentationNetwork):
     use_this_for_batch_size_computation_2D = 858931200.0  # 1167982592.0
     use_this_for_batch_size_computation_3D = 727842816.0  # 1152286720.0
 
-    def __init__(self, input_channels, base_num_features, num_blocks_per_stage_encoder, feat_map_mul_on_downscale,
-                 pool_op_kernel_sizes, conv_kernel_sizes, props, num_classes, num_blocks_per_stage_decoder,
-                 deep_supervision=False, upscale_logits=False, max_features=512, initializer=None):
+    def __init__(
+        self,
+        input_channels,
+        base_num_features,
+        num_blocks_per_stage_encoder,
+        feat_map_mul_on_downscale,
+        pool_op_kernel_sizes,
+        conv_kernel_sizes,
+        props,
+        num_classes,
+        num_blocks_per_stage_decoder,
+        deep_supervision=False,
+        upscale_logits=False,
+        max_features=512,
+        initializer=None,
+    ):
         super(PreActResidualUNet, self).__init__()
-        self.conv_op = props['conv_op']
+        self.conv_op = props["conv_op"]
         self.num_classes = num_classes
 
-        self.encoder = PreActResidualUNetEncoder(input_channels, base_num_features, num_blocks_per_stage_encoder,
-                                                 feat_map_mul_on_downscale, pool_op_kernel_sizes, conv_kernel_sizes,
-                                                 props, default_return_skips=True, max_num_features=max_features)
-        self.decoder = PreActResidualUNetDecoder(self.encoder, num_classes, num_blocks_per_stage_decoder, props,
-                                                 deep_supervision, upscale_logits)
+        self.encoder = PreActResidualUNetEncoder(
+            input_channels,
+            base_num_features,
+            num_blocks_per_stage_encoder,
+            feat_map_mul_on_downscale,
+            pool_op_kernel_sizes,
+            conv_kernel_sizes,
+            props,
+            default_return_skips=True,
+            max_num_features=max_features,
+        )
+        self.decoder = PreActResidualUNetDecoder(
+            self.encoder,
+            num_classes,
+            num_blocks_per_stage_decoder,
+            props,
+            deep_supervision,
+            upscale_logits,
+        )
         if initializer is not None:
             self.apply(initializer)
 
@@ -390,52 +547,95 @@ class PreActResidualUNet(SegmentationNetwork):
         return self.decoder(skips)
 
     @staticmethod
-    def compute_approx_vram_consumption(patch_size, base_num_features, max_num_features,
-                                        num_modalities, num_classes, pool_op_kernel_sizes, num_conv_per_stage_encoder,
-                                        num_conv_per_stage_decoder, feat_map_mul_on_downscale, batch_size):
-        enc = PreActResidualUNetEncoder.compute_approx_vram_consumption(patch_size, base_num_features, max_num_features,
-                                                                        num_modalities, pool_op_kernel_sizes,
-                                                                        num_conv_per_stage_encoder,
-                                                                        feat_map_mul_on_downscale, batch_size)
-        dec = PreActResidualUNetDecoder.compute_approx_vram_consumption(patch_size, base_num_features, max_num_features,
-                                                                        num_classes, pool_op_kernel_sizes,
-                                                                        num_conv_per_stage_decoder,
-                                                                        feat_map_mul_on_downscale, batch_size)
+    def compute_approx_vram_consumption(
+        patch_size,
+        base_num_features,
+        max_num_features,
+        num_modalities,
+        num_classes,
+        pool_op_kernel_sizes,
+        num_conv_per_stage_encoder,
+        num_conv_per_stage_decoder,
+        feat_map_mul_on_downscale,
+        batch_size,
+    ):
+        enc = PreActResidualUNetEncoder.compute_approx_vram_consumption(
+            patch_size,
+            base_num_features,
+            max_num_features,
+            num_modalities,
+            pool_op_kernel_sizes,
+            num_conv_per_stage_encoder,
+            feat_map_mul_on_downscale,
+            batch_size,
+        )
+        dec = PreActResidualUNetDecoder.compute_approx_vram_consumption(
+            patch_size,
+            base_num_features,
+            max_num_features,
+            num_classes,
+            pool_op_kernel_sizes,
+            num_conv_per_stage_decoder,
+            feat_map_mul_on_downscale,
+            batch_size,
+        )
 
         return enc + dec
 
     @staticmethod
     def compute_reference_for_vram_consumption_3d():
         patch_size = (128, 128, 128)
-        pool_op_kernel_sizes = ((1, 1, 1),
-                            (2, 2, 2),
-                            (2, 2, 2),
-                            (2, 2, 2),
-                            (2, 2, 2),
-                            (2, 2, 2))
+        pool_op_kernel_sizes = (
+            (1, 1, 1),
+            (2, 2, 2),
+            (2, 2, 2),
+            (2, 2, 2),
+            (2, 2, 2),
+            (2, 2, 2),
+        )
         blocks_per_stage_encoder = (1, 1, 1, 1, 1, 1)
         blocks_per_stage_decoder = (1, 1, 1, 1, 1)
 
-        return PreActResidualUNet.compute_approx_vram_consumption(patch_size, 20, 512, 4, 3, pool_op_kernel_sizes,
-                                                                  blocks_per_stage_encoder, blocks_per_stage_decoder, 2, 2)
+        return PreActResidualUNet.compute_approx_vram_consumption(
+            patch_size,
+            20,
+            512,
+            4,
+            3,
+            pool_op_kernel_sizes,
+            blocks_per_stage_encoder,
+            blocks_per_stage_decoder,
+            2,
+            2,
+        )
 
     @staticmethod
     def compute_reference_for_vram_consumption_2d():
         patch_size = (256, 256)
         pool_op_kernel_sizes = (
-            (1, 1), # (256, 256)
-            (2, 2), # (128, 128)
-            (2, 2), # (64, 64)
-            (2, 2), # (32, 32)
-            (2, 2), # (16, 16)
-            (2, 2), # (8, 8)
-            (2, 2)  # (4, 4)
+            (1, 1),  # (256, 256)
+            (2, 2),  # (128, 128)
+            (2, 2),  # (64, 64)
+            (2, 2),  # (32, 32)
+            (2, 2),  # (16, 16)
+            (2, 2),  # (8, 8)
+            (2, 2),  # (4, 4)
         )
         blocks_per_stage_encoder = (1, 1, 1, 1, 1, 1, 1)
         blocks_per_stage_decoder = (1, 1, 1, 1, 1, 1)
 
-        return PreActResidualUNet.compute_approx_vram_consumption(patch_size, 20, 512, 4, 3, pool_op_kernel_sizes,
-                                                                  blocks_per_stage_encoder, blocks_per_stage_decoder, 2, 50)
+        return PreActResidualUNet.compute_approx_vram_consumption(
+            patch_size,
+            20,
+            512,
+            4,
+            3,
+            pool_op_kernel_sizes,
+            blocks_per_stage_encoder,
+            blocks_per_stage_decoder,
+            2,
+            50,
+        )
 
 
 class FabiansPreActUNet(SegmentationNetwork):
@@ -443,27 +643,62 @@ class FabiansPreActUNet(SegmentationNetwork):
     use_this_for_3D_configuration = 1318592512
     default_blocks_per_stage_encoder = (1, 3, 4, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6)
     default_blocks_per_stage_decoder = (2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2)
-    default_min_batch_size = 2 # this is what works with the numbers above
+    default_min_batch_size = 2  # this is what works with the numbers above
 
-    def __init__(self, input_channels, base_num_features, num_blocks_per_stage_encoder, feat_map_mul_on_downscale,
-                 pool_op_kernel_sizes, conv_kernel_sizes, props, num_classes, num_blocks_per_stage_decoder,
-                 deep_supervision=False, upscale_logits=False, max_features=512, initializer=None):
+    def __init__(
+        self,
+        input_channels,
+        base_num_features,
+        num_blocks_per_stage_encoder,
+        feat_map_mul_on_downscale,
+        pool_op_kernel_sizes,
+        conv_kernel_sizes,
+        props,
+        num_classes,
+        num_blocks_per_stage_decoder,
+        deep_supervision=False,
+        upscale_logits=False,
+        max_features=512,
+        initializer=None,
+    ):
         super().__init__()
-        self.conv_op = props['conv_op']
+        self.conv_op = props["conv_op"]
         self.num_classes = num_classes
 
-        self.encoder = PreActResidualUNetEncoder(input_channels, base_num_features, num_blocks_per_stage_encoder,
-                                           feat_map_mul_on_downscale, pool_op_kernel_sizes, conv_kernel_sizes,
-                                           props, default_return_skips=True, max_num_features=max_features)
-        props['dropout_op_kwargs']['p'] = 0
-        self.decoder = PlainConvUNetDecoder(self.encoder, num_classes, num_blocks_per_stage_decoder, props,
-                                           deep_supervision, upscale_logits)
+        self.encoder = PreActResidualUNetEncoder(
+            input_channels,
+            base_num_features,
+            num_blocks_per_stage_encoder,
+            feat_map_mul_on_downscale,
+            pool_op_kernel_sizes,
+            conv_kernel_sizes,
+            props,
+            default_return_skips=True,
+            max_num_features=max_features,
+        )
+        props["dropout_op_kwargs"]["p"] = 0
+        self.decoder = PlainConvUNetDecoder(
+            self.encoder,
+            num_classes,
+            num_blocks_per_stage_decoder,
+            props,
+            deep_supervision,
+            upscale_logits,
+        )
 
         expected_num_skips = len(conv_kernel_sizes) - 1
-        num_features_skips = [min(max_features, base_num_features * 2**i) for i in range(expected_num_skips)]
+        num_features_skips = [
+            min(max_features, base_num_features * 2**i)
+            for i in range(expected_num_skips)
+        ]
         norm_nonlins = []
         for i in range(expected_num_skips):
-            norm_nonlins.append(nn.Sequential(props['norm_op'](num_features_skips[i], **props['norm_op_kwargs']), props['nonlin'](**props['nonlin_kwargs'])))
+            norm_nonlins.append(
+                nn.Sequential(
+                    props["norm_op"](num_features_skips[i], **props["norm_op_kwargs"]),
+                    props["nonlin"](**props["nonlin_kwargs"]),
+                )
+            )
         self.norm_nonlins = nn.ModuleList(norm_nonlins)
 
         if initializer is not None:
@@ -476,17 +711,38 @@ class FabiansPreActUNet(SegmentationNetwork):
         return self.decoder(skips, gt, loss)
 
     @staticmethod
-    def compute_approx_vram_consumption(patch_size, base_num_features, max_num_features,
-                                        num_modalities, num_classes, pool_op_kernel_sizes, num_blocks_per_stage_encoder,
-                                        num_blocks_per_stage_decoder, feat_map_mul_on_downscale, batch_size):
-        enc = PreActResidualUNetEncoder.compute_approx_vram_consumption(patch_size, base_num_features, max_num_features,
-                                                                        num_modalities, pool_op_kernel_sizes,
-                                                                        num_blocks_per_stage_encoder,
-                                                                        feat_map_mul_on_downscale, batch_size)
-        dec = PlainConvUNetDecoder.compute_approx_vram_consumption(patch_size, base_num_features, max_num_features,
-                                                                   num_classes, pool_op_kernel_sizes,
-                                                                   num_blocks_per_stage_decoder,
-                                                                   feat_map_mul_on_downscale, batch_size)
+    def compute_approx_vram_consumption(
+        patch_size,
+        base_num_features,
+        max_num_features,
+        num_modalities,
+        num_classes,
+        pool_op_kernel_sizes,
+        num_blocks_per_stage_encoder,
+        num_blocks_per_stage_decoder,
+        feat_map_mul_on_downscale,
+        batch_size,
+    ):
+        enc = PreActResidualUNetEncoder.compute_approx_vram_consumption(
+            patch_size,
+            base_num_features,
+            max_num_features,
+            num_modalities,
+            pool_op_kernel_sizes,
+            num_blocks_per_stage_encoder,
+            feat_map_mul_on_downscale,
+            batch_size,
+        )
+        dec = PlainConvUNetDecoder.compute_approx_vram_consumption(
+            patch_size,
+            base_num_features,
+            max_num_features,
+            num_classes,
+            pool_op_kernel_sizes,
+            num_blocks_per_stage_decoder,
+            feat_map_mul_on_downscale,
+            batch_size,
+        )
 
         return enc + dec
 
@@ -495,18 +751,22 @@ def find_3d_configuration():
     cudnn.benchmark = True
     cudnn.deterministic = False
 
-    conv_op_kernel_sizes = ((3, 3, 3),
-                            (3, 3, 3),
-                            (3, 3, 3),
-                            (3, 3, 3),
-                            (3, 3, 3),
-                            (3, 3, 3))
-    pool_op_kernel_sizes = ((1, 1, 1),
-                            (2, 2, 2),
-                            (2, 2, 2),
-                            (2, 2, 2),
-                            (2, 2, 2),
-                            (2, 2, 2))
+    conv_op_kernel_sizes = (
+        (3, 3, 3),
+        (3, 3, 3),
+        (3, 3, 3),
+        (3, 3, 3),
+        (3, 3, 3),
+        (3, 3, 3),
+    )
+    pool_op_kernel_sizes = (
+        (1, 1, 1),
+        (2, 2, 2),
+        (2, 2, 2),
+        (2, 2, 2),
+        (2, 2, 2),
+        (2, 2, 2),
+    )
 
     patch_size = (128, 128, 128)
     base_num_features = 32
@@ -518,21 +778,49 @@ def find_3d_configuration():
     max_features = 320
     batch_size = 2
 
-    unet = FabiansPreActUNet(input_modalities, base_num_features, blocks_per_stage_encoder, feat_map_mult_on_downscale,
-    pool_op_kernel_sizes, conv_op_kernel_sizes, get_default_network_config(3, dropout_p=None), num_classes,
-    blocks_per_stage_decoder, True, False, max_features=max_features).cuda()
+    unet = FabiansPreActUNet(
+        input_modalities,
+        base_num_features,
+        blocks_per_stage_encoder,
+        feat_map_mult_on_downscale,
+        pool_op_kernel_sizes,
+        conv_op_kernel_sizes,
+        get_default_network_config(3, dropout_p=None),
+        num_classes,
+        blocks_per_stage_decoder,
+        True,
+        False,
+        max_features=max_features,
+    ).cuda()
 
     scaler = GradScaler()
     optimizer = SGD(unet.parameters(), lr=0.1, momentum=0.95)
 
-    print(unet.compute_approx_vram_consumption(patch_size, base_num_features, max_features, input_modalities,
-                                               num_classes, pool_op_kernel_sizes, blocks_per_stage_encoder,
-                                               blocks_per_stage_decoder, feat_map_mult_on_downscale, batch_size))
+    print(
+        unet.compute_approx_vram_consumption(
+            patch_size,
+            base_num_features,
+            max_features,
+            input_modalities,
+            num_classes,
+            pool_op_kernel_sizes,
+            blocks_per_stage_encoder,
+            blocks_per_stage_decoder,
+            feat_map_mult_on_downscale,
+            batch_size,
+        )
+    )
 
-    loss = DC_and_CE_loss({'batch_dice': True, 'smooth': 1e-5, 'do_bg': False}, {})
+    loss = DC_and_CE_loss({"batch_dice": True, "smooth": 1e-5, "do_bg": False}, {})
 
     dummy_input = torch.rand((batch_size, input_modalities, *patch_size)).cuda()
-    dummy_gt = (torch.rand((batch_size, 1, *patch_size)) * num_classes).round().clamp_(0, num_classes-1).cuda().long()
+    dummy_gt = (
+        (torch.rand((batch_size, 1, *patch_size)) * num_classes)
+        .round()
+        .clamp_(0, num_classes - 1)
+        .cuda()
+        .long()
+    )
 
     for i in range(10):
         optimizer.zero_grad()
@@ -550,6 +838,7 @@ def find_3d_configuration():
 
     with autocast():
         import hiddenlayer as hl
+
         g = hl.build_graph(unet, dummy_input, transforms=None)
         g.save("/home/fabian/test_arch.pdf")
 
@@ -558,20 +847,8 @@ def find_2d_configuration():
     cudnn.benchmark = True
     cudnn.deterministic = False
 
-    conv_op_kernel_sizes = ((3, 3),
-                            (3, 3),
-                            (3, 3),
-                            (3, 3),
-                            (3, 3),
-                            (3, 3),
-                            (3, 3))
-    pool_op_kernel_sizes = ((1, 1),
-                            (2, 2),
-                            (2, 2),
-                            (2, 2),
-                            (2, 2),
-                            (2, 2),
-                            (2, 2))
+    conv_op_kernel_sizes = ((3, 3), (3, 3), (3, 3), (3, 3), (3, 3), (3, 3), (3, 3))
+    pool_op_kernel_sizes = ((1, 1), (2, 2), (2, 2), (2, 2), (2, 2), (2, 2), (2, 2))
 
     patch_size = (256, 256)
     base_num_features = 32
@@ -583,21 +860,49 @@ def find_2d_configuration():
     max_features = 512
     batch_size = 50
 
-    unet = FabiansPreActUNet(input_modalities, base_num_features, blocks_per_stage_encoder, feat_map_mult_on_downscale,
-    pool_op_kernel_sizes, conv_op_kernel_sizes, get_default_network_config(2, dropout_p=None), num_classes,
-    blocks_per_stage_decoder, True, False, max_features=max_features).cuda()
+    unet = FabiansPreActUNet(
+        input_modalities,
+        base_num_features,
+        blocks_per_stage_encoder,
+        feat_map_mult_on_downscale,
+        pool_op_kernel_sizes,
+        conv_op_kernel_sizes,
+        get_default_network_config(2, dropout_p=None),
+        num_classes,
+        blocks_per_stage_decoder,
+        True,
+        False,
+        max_features=max_features,
+    ).cuda()
 
     scaler = GradScaler()
     optimizer = SGD(unet.parameters(), lr=0.1, momentum=0.95)
 
-    print(unet.compute_approx_vram_consumption(patch_size, base_num_features, max_features, input_modalities,
-                                               num_classes, pool_op_kernel_sizes, blocks_per_stage_encoder,
-                                               blocks_per_stage_decoder, feat_map_mult_on_downscale, batch_size))
+    print(
+        unet.compute_approx_vram_consumption(
+            patch_size,
+            base_num_features,
+            max_features,
+            input_modalities,
+            num_classes,
+            pool_op_kernel_sizes,
+            blocks_per_stage_encoder,
+            blocks_per_stage_decoder,
+            feat_map_mult_on_downscale,
+            batch_size,
+        )
+    )
 
-    loss = DC_and_CE_loss({'batch_dice': True, 'smooth': 1e-5, 'do_bg': False}, {})
+    loss = DC_and_CE_loss({"batch_dice": True, "smooth": 1e-5, "do_bg": False}, {})
 
     dummy_input = torch.rand((batch_size, input_modalities, *patch_size)).cuda()
-    dummy_gt = (torch.rand((batch_size, 1, *patch_size)) * num_classes).round().clamp_(0, num_classes-1).cuda().long()
+    dummy_gt = (
+        (torch.rand((batch_size, 1, *patch_size)) * num_classes)
+        .round()
+        .clamp_(0, num_classes - 1)
+        .cuda()
+        .long()
+    )
 
     for i in range(10):
         optimizer.zero_grad()
@@ -615,5 +920,6 @@ def find_2d_configuration():
 
     with autocast():
         import hiddenlayer as hl
+
         g = hl.build_graph(unet, dummy_input, transforms=None)
         g.save("/home/fabian/test_arch.pdf")

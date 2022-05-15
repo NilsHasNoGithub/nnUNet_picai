@@ -39,10 +39,10 @@ def convert_labels_back_to_myops(source_nifti: str, target_nifti: str):
     sitk.WriteImage(myops_seg_itk, target_nifti)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # this is where we extracted all the archives. This folder must have the subfolders test20, train25,
     # train25_myops_gd. We do not use test_data_gd because the test GT is encoded and cannot be used as it is
-    base = '/home/fabian/Downloads/MyoPS 2020 Dataset'
+    base = "/home/fabian/Downloads/MyoPS 2020 Dataset"
 
     # Arbitrary task id. This is just to ensure each dataset ha a unique number. Set this to whatever ([0-999]) you
     # want
@@ -60,46 +60,62 @@ if __name__ == '__main__':
     maybe_mkdir_p(imagests)
     maybe_mkdir_p(labelstr)
 
-    imagestr_source = join(base, 'train25')
-    imagests_source = join(base, 'test20')
-    labelstr_source = join(base, 'train25_myops_gd')
+    imagestr_source = join(base, "train25")
+    imagests_source = join(base, "test20")
+    labelstr_source = join(base, "train25_myops_gd")
 
     # convert training set
     nii_files = nifti_files(imagestr_source, join=False)
     # remove their modality identifier. Conveniently it's always 2 characters. np.unique to get the identifiers
-    identifiers = np.unique([i[:-len('_C0.nii.gz')] for i in nii_files])
+    identifiers = np.unique([i[: -len("_C0.nii.gz")] for i in nii_files])
     for i in identifiers:
-        shutil.copy(join(imagestr_source, i + "_C0.nii.gz"), join(imagestr, i + '_0000.nii.gz'))
-        shutil.copy(join(imagestr_source, i + "_DE.nii.gz"), join(imagestr, i + '_0001.nii.gz'))
-        shutil.copy(join(imagestr_source, i + "_T2.nii.gz"), join(imagestr, i + '_0002.nii.gz'))
-        convert_labels_to_nnunet(join(labelstr_source, i + '_gd.nii.gz'), join(labelstr, i + '.nii.gz'))
+        shutil.copy(
+            join(imagestr_source, i + "_C0.nii.gz"), join(imagestr, i + "_0000.nii.gz")
+        )
+        shutil.copy(
+            join(imagestr_source, i + "_DE.nii.gz"), join(imagestr, i + "_0001.nii.gz")
+        )
+        shutil.copy(
+            join(imagestr_source, i + "_T2.nii.gz"), join(imagestr, i + "_0002.nii.gz")
+        )
+        convert_labels_to_nnunet(
+            join(labelstr_source, i + "_gd.nii.gz"), join(labelstr, i + ".nii.gz")
+        )
 
     # test set
     nii_files = nifti_files(imagests_source, join=False)
     # remove their modality identifier. Conveniently it's always 2 characters. np.unique to get the identifiers
-    identifiers = np.unique([i[:-len('_C0.nii.gz')] for i in nii_files])
+    identifiers = np.unique([i[: -len("_C0.nii.gz")] for i in nii_files])
     for i in identifiers:
-        shutil.copy(join(imagests_source, i + "_C0.nii.gz"), join(imagests, i + '_0000.nii.gz'))
-        shutil.copy(join(imagests_source, i + "_DE.nii.gz"), join(imagests, i + '_0001.nii.gz'))
-        shutil.copy(join(imagests_source, i + "_T2.nii.gz"), join(imagests, i + '_0002.nii.gz'))
+        shutil.copy(
+            join(imagests_source, i + "_C0.nii.gz"), join(imagests, i + "_0000.nii.gz")
+        )
+        shutil.copy(
+            join(imagests_source, i + "_DE.nii.gz"), join(imagests, i + "_0001.nii.gz")
+        )
+        shutil.copy(
+            join(imagests_source, i + "_T2.nii.gz"), join(imagests, i + "_0002.nii.gz")
+        )
 
-    generate_dataset_json(join(out_base, 'dataset.json'),
-                          imagestr,
-                          None,
-                          ('C0', 'DE', 'T2'),
-                          {
-                              0: 'background',
-                              1: "left ventricular (LV) blood pool",
-                              2: "right ventricular blood pool",
-                              3: "LV normal myocardium",
-                              4: "LV myocardial edema",
-                              5: "LV myocardial scars",
-                          },
-                          task_name,
-                          license='see http://www.sdspeople.fudan.edu.cn/zhuangxiahai/0/myops20/index.html',
-                          dataset_description='see http://www.sdspeople.fudan.edu.cn/zhuangxiahai/0/myops20/index.html',
-                          dataset_reference='http://www.sdspeople.fudan.edu.cn/zhuangxiahai/0/myops20/index.html',
-                          dataset_release='0')
+    generate_dataset_json(
+        join(out_base, "dataset.json"),
+        imagestr,
+        None,
+        ("C0", "DE", "T2"),
+        {
+            0: "background",
+            1: "left ventricular (LV) blood pool",
+            2: "right ventricular blood pool",
+            3: "LV normal myocardium",
+            4: "LV myocardial edema",
+            5: "LV myocardial scars",
+        },
+        task_name,
+        license="see http://www.sdspeople.fudan.edu.cn/zhuangxiahai/0/myops20/index.html",
+        dataset_description="see http://www.sdspeople.fudan.edu.cn/zhuangxiahai/0/myops20/index.html",
+        dataset_reference="http://www.sdspeople.fudan.edu.cn/zhuangxiahai/0/myops20/index.html",
+        dataset_release="0",
+    )
 
     # REMEMBER THAT TEST SET INFERENCE WILL REQUIRE YOU CONVERT THE LABELS BACK TO THEIR CONVENTION
     # use convert_labels_back_to_myops for that!

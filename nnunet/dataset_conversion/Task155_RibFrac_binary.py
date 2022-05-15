@@ -30,15 +30,25 @@ def preprocess_dataset(dataset_load_path, dataset_save_path, pool):
     Path(train_mask_save_path).mkdir(parents=True, exist_ok=True)
     Path(test_image_save_path).mkdir(parents=True, exist_ok=True)
 
-    meta_data = preprocess_csv(ribfrac_train_info_1_path, ribfrac_train_info_2_path, ribfrac_val_info_path)
-    preprocess_train(train_image_load_path, train_mask_load_path, meta_data, dataset_save_path, pool)
+    meta_data = preprocess_csv(
+        ribfrac_train_info_1_path, ribfrac_train_info_2_path, ribfrac_val_info_path
+    )
+    preprocess_train(
+        train_image_load_path, train_mask_load_path, meta_data, dataset_save_path, pool
+    )
     preprocess_test(test_image_load_path, dataset_save_path)
 
 
-def preprocess_csv(ribfrac_train_info_1_path, ribfrac_train_info_2_path, ribfrac_val_info_path):
+def preprocess_csv(
+    ribfrac_train_info_1_path, ribfrac_train_info_2_path, ribfrac_val_info_path
+):
     print("Processing csv...")
     meta_data = defaultdict(list)
-    for csv_path in [ribfrac_train_info_1_path, ribfrac_train_info_2_path, ribfrac_val_info_path]:
+    for csv_path in [
+        ribfrac_train_info_1_path,
+        ribfrac_train_info_2_path,
+        ribfrac_val_info_path,
+    ]:
         df = pd.read_csv(csv_path)
         for index, row in df.iterrows():
             name = row["public_id"]
@@ -51,22 +61,45 @@ def preprocess_csv(ribfrac_train_info_1_path, ribfrac_train_info_2_path, ribfrac
 
 def preprocess_train(image_path, mask_path, meta_data, save_path, pool):
     print("Processing train data...")
-    pool.map(partial(preprocess_train_single, image_path=image_path, mask_path=mask_path, meta_data=meta_data, save_path=save_path), meta_data.keys())
+    pool.map(
+        partial(
+            preprocess_train_single,
+            image_path=image_path,
+            mask_path=mask_path,
+            meta_data=meta_data,
+            save_path=save_path,
+        ),
+        meta_data.keys(),
+    )
     print("Finished processing train data.")
 
 
 def preprocess_train_single(name, image_path, mask_path, meta_data, save_path):
     id = int(name[7:])
-    image, _, _, _ = load_image(join(image_path, name + "-image.nii.gz"), return_meta=True, is_seg=False)
-    instance_seg_mask, spacing, _, _ = load_image(join(mask_path, name + "-label.nii.gz"), return_meta=True, is_seg=True)
+    image, _, _, _ = load_image(
+        join(image_path, name + "-image.nii.gz"), return_meta=True, is_seg=False
+    )
+    instance_seg_mask, spacing, _, _ = load_image(
+        join(mask_path, name + "-label.nii.gz"), return_meta=True, is_seg=True
+    )
     semantic_seg_mask = np.zeros_like(instance_seg_mask, dtype=int)
     for entry in meta_data[name]:
         class_label = entry["class_label"]
         if class_label > 0:
             class_label = 1
         semantic_seg_mask[instance_seg_mask == entry["instance"]] = class_label
-    save_image(join(save_path, "imagesTr/RibFrac_" + str(id).zfill(4) + "_0000.nii.gz"), image, spacing=spacing, is_seg=False)
-    save_image(join(save_path, "labelsTr/RibFrac_" + str(id).zfill(4) + ".nii.gz"), semantic_seg_mask, spacing=spacing, is_seg=True)
+    save_image(
+        join(save_path, "imagesTr/RibFrac_" + str(id).zfill(4) + "_0000.nii.gz"),
+        image,
+        spacing=spacing,
+        is_seg=False,
+    )
+    save_image(
+        join(save_path, "labelsTr/RibFrac_" + str(id).zfill(4) + ".nii.gz"),
+        semantic_seg_mask,
+        spacing=spacing,
+        is_seg=True,
+    )
 
 
 def preprocess_test(load_test_image_dir, save_path):
@@ -74,7 +107,10 @@ def preprocess_test(load_test_image_dir, save_path):
     filenames = load_filenames(load_test_image_dir)
     for filename in tqdm(filenames):
         id = int(os.path.basename(filename)[8:-13])
-        copyfile(filename, join(save_path, "imagesTs/RibFrac_" + str(id).zfill(4) + "_0000.nii.gz"))
+        copyfile(
+            filename,
+            join(save_path, "imagesTs/RibFrac_" + str(id).zfill(4) + "_0000.nii.gz"),
+        )
     print("Finished processing test data.")
 
 
@@ -103,22 +139,35 @@ def load_image(filepath, return_meta=False, is_seg=False):
 
     if is_seg:
         image_np = np.rint(image_np)
-        image_np = image_np.astype(np.int8)  # In special cases segmentations can contain negative labels, so no np.uint8
+        image_np = image_np.astype(
+            np.int8
+        )  # In special cases segmentations can contain negative labels, so no np.uint8
 
     if not return_meta:
         return image_np
     else:
         spacing = image.GetSpacing()
         keys = image.GetMetaDataKeys()
-        header = {key:image.GetMetaData(key) for key in keys}
+        header = {key: image.GetMetaData(key) for key in keys}
         affine = None  # How do I get the affine transform with SimpleITK? With NiBabel it is just image.affine
         return image_np, spacing, affine, header
 
 
-def save_image(filename, image, spacing=None, affine=None, header=None, is_seg=False, mp_pool=None, free_mem=False):
+def save_image(
+    filename,
+    image,
+    spacing=None,
+    affine=None,
+    header=None,
+    is_seg=False,
+    mp_pool=None,
+    free_mem=False,
+):
     if is_seg:
         image = np.rint(image)
-        image = image.astype(np.int8)  # In special cases segmentations can contain negative labels, so no np.uint8
+        image = image.astype(
+            np.int8
+        )  # In special cases segmentations can contain negative labels, so no np.uint8
 
     image = sitk.GetImageFromArray(image)
 
@@ -137,7 +186,14 @@ def save_image(filename, image, spacing=None, affine=None, header=None, is_seg=F
             del image
             gc.collect()
     else:
-        mp_pool.apply_async(_save, args=(filename, image, free_mem,))
+        mp_pool.apply_async(
+            _save,
+            args=(
+                filename,
+                image,
+                free_mem,
+            ),
+        )
         if free_mem:
             del image
             gc.collect()
@@ -171,4 +227,11 @@ if __name__ == "__main__":
     print("All tasks finished.")
 
     labels = {0: "background", 1: "fracture"}
-    generate_dataset_json(join(dataset_save_path, 'dataset.json'), join(dataset_save_path, "imagesTr"), None, ('CT',), labels, "Task155_RibFrac_binary")
+    generate_dataset_json(
+        join(dataset_save_path, "dataset.json"),
+        join(dataset_save_path, "imagesTr"),
+        None,
+        ("CT",),
+        labels,
+        "Task155_RibFrac_binary",
+    )

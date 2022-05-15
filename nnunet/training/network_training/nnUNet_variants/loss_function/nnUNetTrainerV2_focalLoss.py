@@ -34,7 +34,15 @@ class FocalLoss(nn.Module):
     :param size_average: (bool, optional) By default, the losses are averaged over each loss element in the batch.
     """
 
-    def __init__(self, apply_nonlin=None, alpha=None, gamma=2, balance_index=0, smooth=1e-5, size_average=True):
+    def __init__(
+        self,
+        apply_nonlin=None,
+        alpha=None,
+        gamma=2,
+        balance_index=0,
+        smooth=1e-5,
+        size_average=True,
+    ):
         super(FocalLoss, self).__init__()
         self.apply_nonlin = apply_nonlin
         self.alpha = alpha
@@ -45,7 +53,7 @@ class FocalLoss(nn.Module):
 
         if self.smooth is not None:
             if self.smooth < 0 or self.smooth > 1.0:
-                raise ValueError('smooth value should be in [0,1]')
+                raise ValueError("smooth value should be in [0,1]")
 
     def forward(self, logit, target):
         if self.apply_nonlin is not None:
@@ -60,7 +68,7 @@ class FocalLoss(nn.Module):
         target = torch.squeeze(target, 1)
         target = target.view(-1, 1)
         # print(logit.shape, target.shape)
-        
+
         alpha = self.alpha
 
         if alpha is None:
@@ -74,8 +82,8 @@ class FocalLoss(nn.Module):
             alpha = alpha * (1 - self.alpha)
             alpha[self.balance_index] = self.alpha
         else:
-            raise TypeError(f'Unsupported alpha type: {type(alpha)}')
-        
+            raise TypeError(f"Unsupported alpha type: {type(alpha)}")
+
         if alpha.device != logit.device:
             alpha = alpha.to(logit.device)
 
@@ -88,7 +96,8 @@ class FocalLoss(nn.Module):
 
         if self.smooth:
             one_hot_key = torch.clamp(
-                one_hot_key, self.smooth/(num_class-1), 1.0 - self.smooth)
+                one_hot_key, self.smooth / (num_class - 1), 1.0 - self.smooth
+            )
         pt = (one_hot_key * logit).sum(1) + self.smooth
         logpt = pt.log()
 
@@ -97,44 +106,124 @@ class FocalLoss(nn.Module):
         alpha = alpha[idx]
         alpha = torch.squeeze(alpha)
         loss = -1 * alpha * torch.pow((1 - pt), gamma) * logpt
-        
+
         if self.size_average:
             loss = loss.mean()
         else:
             loss = loss.sum()
-        
+
         return loss
 
 
 class nnUNetTrainerV2_focalLossAlpha75(nnUNetTrainerV2):
-    def __init__(self, plans_file, fold, output_folder=None, dataset_directory=None, batch_dice=True, stage=None,
-                 unpack_data=True, deterministic=True, fp16=False):
-        super().__init__(plans_file, fold, output_folder, dataset_directory, batch_dice, stage, unpack_data,
-                         deterministic, fp16)
+    def __init__(
+        self,
+        plans_file,
+        fold,
+        output_folder=None,
+        dataset_directory=None,
+        batch_dice=True,
+        stage=None,
+        unpack_data=True,
+        deterministic=True,
+        fp16=False,
+    ):
+        super().__init__(
+            plans_file,
+            fold,
+            output_folder,
+            dataset_directory,
+            batch_dice,
+            stage,
+            unpack_data,
+            deterministic,
+            fp16,
+        )
         print(f"Setting up FocalLoss(alpha=[0.75, 0.25], apply_nonlin=nn.Softmax())")
         self.loss = FocalLoss(alpha=[0.75, 0.25], apply_nonlin=nn.Softmax())
 
 
 class nnUNetTrainerV2_focalLossAlpha75_checkpoints(nnUNetTrainerV2_focalLossAlpha75):
-    def __init__(self, plans_file, fold, output_folder=None, dataset_directory=None, batch_dice=True, stage=None,
-                 unpack_data=True, deterministic=True, fp16=False):
-        super().__init__(plans_file, fold, output_folder, dataset_directory, batch_dice, stage, unpack_data,
-                         deterministic, fp16)
+    def __init__(
+        self,
+        plans_file,
+        fold,
+        output_folder=None,
+        dataset_directory=None,
+        batch_dice=True,
+        stage=None,
+        unpack_data=True,
+        deterministic=True,
+        fp16=False,
+    ):
+        super().__init__(
+            plans_file,
+            fold,
+            output_folder,
+            dataset_directory,
+            batch_dice,
+            stage,
+            unpack_data,
+            deterministic,
+            fp16,
+        )
         print(f"Saving checkpoint every 50th epoch")
         self.save_latest_only = False
 
 
-class nnUNetTrainerV2_focalLossAlpha75_checkpoints2(nnUNetTrainerV2_focalLossAlpha75_checkpoints):
-    def __init__(self, plans_file, fold, output_folder=None, dataset_directory=None, batch_dice=True, stage=None,
-                 unpack_data=True, deterministic=True, fp16=False):
-        super().__init__(plans_file, fold, output_folder, dataset_directory, batch_dice, stage, unpack_data,
-                         deterministic, fp16)
-        pass # this is just to get a new Trainer directory
+class nnUNetTrainerV2_focalLossAlpha75_checkpoints2(
+    nnUNetTrainerV2_focalLossAlpha75_checkpoints
+):
+    def __init__(
+        self,
+        plans_file,
+        fold,
+        output_folder=None,
+        dataset_directory=None,
+        batch_dice=True,
+        stage=None,
+        unpack_data=True,
+        deterministic=True,
+        fp16=False,
+    ):
+        super().__init__(
+            plans_file,
+            fold,
+            output_folder,
+            dataset_directory,
+            batch_dice,
+            stage,
+            unpack_data,
+            deterministic,
+            fp16,
+        )
+        pass  # this is just to get a new Trainer directory
 
 
-class nnUNetTrainerV2_focalLossAlpha75_checkpoints3(nnUNetTrainerV2_focalLossAlpha75_checkpoints):
-    def __init__(self, plans_file, fold, output_folder=None, dataset_directory=None, batch_dice=True, stage=None,
-                 unpack_data=True, deterministic=True, fp16=False):
-        super().__init__(plans_file, fold, output_folder, dataset_directory, batch_dice, stage, unpack_data,
-                         deterministic, fp16)
-        pass # this is just to get a new Trainer directory
+class nnUNetTrainerV2_focalLossAlpha75_checkpoints3(
+    nnUNetTrainerV2_focalLossAlpha75_checkpoints
+):
+    def __init__(
+        self,
+        plans_file,
+        fold,
+        output_folder=None,
+        dataset_directory=None,
+        batch_dice=True,
+        stage=None,
+        unpack_data=True,
+        deterministic=True,
+        fp16=False,
+    ):
+        super().__init__(
+            plans_file,
+            fold,
+            output_folder,
+            dataset_directory,
+            batch_dice,
+            stage,
+            unpack_data,
+            deterministic,
+            fp16,
+        )
+        pass  # this is just to get a new Trainer directory

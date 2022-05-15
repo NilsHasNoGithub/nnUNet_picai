@@ -28,84 +28,132 @@ def get_mnms_data(data_root):
     files_gt = []
     for r, dirs, files in os.walk(data_root):
         for f in files:
-            if f.endswith('nii.gz'):
+            if f.endswith("nii.gz"):
                 file_path = os.path.join(r, f)
-                if '_gt' in f:
+                if "_gt" in f:
                     files_gt.append(file_path)
                 else:
                     files_raw.append(file_path)
     return files_raw, files_gt
 
 
-def generate_filename_for_nnunet(pat_id, ts, pat_folder=None, add_zeros=False, vendor=None, centre=None, mode='mnms',
-                                 data_format='nii.gz'):
+def generate_filename_for_nnunet(
+    pat_id,
+    ts,
+    pat_folder=None,
+    add_zeros=False,
+    vendor=None,
+    centre=None,
+    mode="mnms",
+    data_format="nii.gz",
+):
     if not vendor or not centre:
         if add_zeros:
             filename = "{}_{}_0000.{}".format(pat_id, str(ts).zfill(4), data_format)
         else:
             filename = "{}_{}.{}".format(pat_id, str(ts).zfill(4), data_format)
     else:
-        if mode == 'mnms':
+        if mode == "mnms":
             if add_zeros:
-                filename = "{}_{}_{}_{}_0000.{}".format(pat_id, str(ts).zfill(4), vendor, centre, data_format)
+                filename = "{}_{}_{}_{}_0000.{}".format(
+                    pat_id, str(ts).zfill(4), vendor, centre, data_format
+                )
             else:
-                filename = "{}_{}_{}_{}.{}".format(pat_id, str(ts).zfill(4), vendor, centre, data_format)
+                filename = "{}_{}_{}_{}.{}".format(
+                    pat_id, str(ts).zfill(4), vendor, centre, data_format
+                )
         else:
             if add_zeros:
-                filename = "{}_{}_{}_{}_0000.{}".format(vendor, centre, pat_id, str(ts).zfill(4), data_format)
+                filename = "{}_{}_{}_{}_0000.{}".format(
+                    vendor, centre, pat_id, str(ts).zfill(4), data_format
+                )
             else:
-                filename = "{}_{}_{}_{}.{}".format(vendor, centre, pat_id, str(ts).zfill(4), data_format)
+                filename = "{}_{}_{}_{}.{}".format(
+                    vendor, centre, pat_id, str(ts).zfill(4), data_format
+                )
 
     if pat_folder:
         filename = os.path.join(pat_folder, filename)
     return filename
 
 
-def select_annotated_frames_mms(data_folder, out_folder, add_zeros=False, is_gt=False,
-                                df_path="/media/full/tera2/data/challenges/mms/Training-corrected_original/M&Ms Dataset Information.xlsx",
-                                mode='mnms',):
-    table = pd.read_excel(df_path, index_col='External code')
+def select_annotated_frames_mms(
+    data_folder,
+    out_folder,
+    add_zeros=False,
+    is_gt=False,
+    df_path="/media/full/tera2/data/challenges/mms/Training-corrected_original/M&Ms Dataset Information.xlsx",
+    mode="mnms",
+):
+    table = pd.read_excel(df_path, index_col="External code")
 
     for idx in table.index:
-        ed = table.loc[idx, 'ED']
-        es = table.loc[idx, 'ES']
-        vendor = table.loc[idx, 'Vendor']
-        centre = table.loc[idx, 'Centre']
+        ed = table.loc[idx, "ED"]
+        es = table.loc[idx, "ES"]
+        vendor = table.loc[idx, "Vendor"]
+        centre = table.loc[idx, "Centre"]
 
-        if vendor != "C": # vendor C is for test data
+        if vendor != "C":  # vendor C is for test data
 
             # this step is needed in case of M&Ms data to adjust it to the nnUNet frame work
             # generate old filename (w/o vendor and centre)
             if is_gt:
-                add_to_name = 'sa_gt'
+                add_to_name = "sa_gt"
             else:
-                add_to_name = 'sa'
+                add_to_name = "sa"
             filename_ed_original = os.path.join(
-                data_folder, "{}_{}_{}.nii.gz".format(idx, add_to_name, str(ed).zfill(4)))
+                data_folder,
+                "{}_{}_{}.nii.gz".format(idx, add_to_name, str(ed).zfill(4)),
+            )
             filename_es_original = os.path.join(
-                data_folder, "{}_{}_{}.nii.gz".format(idx, add_to_name, str(es).zfill(4)))
+                data_folder,
+                "{}_{}_{}.nii.gz".format(idx, add_to_name, str(es).zfill(4)),
+            )
 
             # generate new filename with vendor and centre
-            filename_ed = generate_filename_for_nnunet(pat_id=idx, ts=ed, pat_folder=out_folder,
-                                                       vendor=vendor, centre=centre, add_zeros=add_zeros, mode=mode)
-            filename_es = generate_filename_for_nnunet(pat_id=idx, ts=es, pat_folder=out_folder,
-                                                       vendor=vendor, centre=centre, add_zeros=add_zeros, mode=mode)
+            filename_ed = generate_filename_for_nnunet(
+                pat_id=idx,
+                ts=ed,
+                pat_folder=out_folder,
+                vendor=vendor,
+                centre=centre,
+                add_zeros=add_zeros,
+                mode=mode,
+            )
+            filename_es = generate_filename_for_nnunet(
+                pat_id=idx,
+                ts=es,
+                pat_folder=out_folder,
+                vendor=vendor,
+                centre=centre,
+                add_zeros=add_zeros,
+                mode=mode,
+            )
 
             shutil.copy(filename_ed_original, filename_ed)
             shutil.copy(filename_es_original, filename_es)
 
 
 def create_custom_splits_for_experiments(task_path):
-    data_keys = [i[:-4] for i in
-                 subfiles(os.path.join(task_path, "nnUNetData_plans_v2.1_2D_stage0"),
-                          join=False, suffix='npz')]
+    data_keys = [
+        i[:-4]
+        for i in subfiles(
+            os.path.join(task_path, "nnUNetData_plans_v2.1_2D_stage0"),
+            join=False,
+            suffix="npz",
+        )
+    ]
     existing_splits = os.path.join(task_path, "splits_final.pkl")
 
     splits = load_pickle(existing_splits)
     splits = splits[:5]  # discard old changes
 
-    unique_a_only = np.unique([i.split('_')[0] for i in data_keys if i.find('_A_') != -1])
-    unique_b_only = np.unique([i.split('_')[0] for i in data_keys if i.find('_B_') != -1])
+    unique_a_only = np.unique(
+        [i.split("_")[0] for i in data_keys if i.find("_A_") != -1]
+    )
+    unique_b_only = np.unique(
+        [i.split("_")[0] for i in data_keys if i.find("_B_") != -1]
+    )
 
     num_train_a = int(np.round(0.8 * len(unique_a_only)))
     num_train_b = int(np.round(0.8 * len(unique_b_only)))
@@ -121,22 +169,32 @@ def create_custom_splits_for_experiments(task_path):
     identifiers_b_val = [i for i in unique_b_only if i not in identifiers_b_train]
 
     # fold 5 will be train on a and eval on val sets of a and b
-    splits.append({'train': [i for i in data_keys if i.split("_")[0] in identifiers_a_train],
-                   'val': [i for i in data_keys if i.split("_")[0] in identifiers_a_val] + [i for i in data_keys if
-                                                                                            i.split("_")[
-                                                                                                0] in identifiers_b_val]})
+    splits.append(
+        {
+            "train": [i for i in data_keys if i.split("_")[0] in identifiers_a_train],
+            "val": [i for i in data_keys if i.split("_")[0] in identifiers_a_val]
+            + [i for i in data_keys if i.split("_")[0] in identifiers_b_val],
+        }
+    )
 
     # fold 6 will be train on b and eval on val sets of a and b
-    splits.append({'train': [i for i in data_keys if i.split("_")[0] in identifiers_b_train],
-                   'val': [i for i in data_keys if i.split("_")[0] in identifiers_a_val] + [i for i in data_keys if
-                                                                                            i.split("_")[
-                                                                                                0] in identifiers_b_val]})
+    splits.append(
+        {
+            "train": [i for i in data_keys if i.split("_")[0] in identifiers_b_train],
+            "val": [i for i in data_keys if i.split("_")[0] in identifiers_a_val]
+            + [i for i in data_keys if i.split("_")[0] in identifiers_b_val],
+        }
+    )
 
     # fold 7 train on both, eval on both
-    splits.append({'train': [i for i in data_keys if i.split("_")[0] in identifiers_b_train] + [i for i in data_keys if i.split("_")[0] in identifiers_a_train],
-                   'val': [i for i in data_keys if i.split("_")[0] in identifiers_a_val] + [i for i in data_keys if
-                                                                                            i.split("_")[
-                                                                                                0] in identifiers_b_val]})
+    splits.append(
+        {
+            "train": [i for i in data_keys if i.split("_")[0] in identifiers_b_train]
+            + [i for i in data_keys if i.split("_")[0] in identifiers_a_train],
+            "val": [i for i in data_keys if i.split("_")[0] in identifiers_a_val]
+            + [i for i in data_keys if i.split("_")[0] in identifiers_b_val],
+        }
+    )
     save_pickle(splits, existing_splits)
 
 
@@ -161,16 +219,28 @@ if __name__ == "__main__":
 
     # this is where our your splitted files WITH annotation will be stored. Dont make changes here. Otherwise nnUNet
     # might have problems finding the training data later during the training process
-    out_dir = os.path.join(os.environ.get('nnUNet_raw_data_base'), 'nnUNet_raw_data', task_name)
+    out_dir = os.path.join(
+        os.environ.get("nnUNet_raw_data_base"), "nnUNet_raw_data", task_name
+    )
 
     files_raw, files_gt = get_mnms_data(data_root=train_dir)
 
     filesTs, _ = get_mnms_data(data_root=train_dir)
 
-    split_path_raw_all_ts = os.path.join(raw_data_dir, task_name, "splitted_all_timesteps", folder_imagesTr,
-                                         "split_raw_images")
-    split_path_gt_all_ts = os.path.join(raw_data_dir, task_name, "splitted_all_timesteps", folder_imagesTr,
-                                        "split_annotation")
+    split_path_raw_all_ts = os.path.join(
+        raw_data_dir,
+        task_name,
+        "splitted_all_timesteps",
+        folder_imagesTr,
+        "split_raw_images",
+    )
+    split_path_gt_all_ts = os.path.join(
+        raw_data_dir,
+        task_name,
+        "splitted_all_timesteps",
+        folder_imagesTr,
+        "split_annotation",
+    )
     maybe_mkdir_p(split_path_raw_all_ts)
     maybe_mkdir_p(split_path_gt_all_ts)
 
@@ -199,36 +269,50 @@ if __name__ == "__main__":
     labelsTr_path = os.path.join(out_dir, "labelsTr")
     # only a small fraction of all timestep in the cardiac cycle possess gt annotation. These timestep will now be
     # selected
-    select_annotated_frames_mms(split_path_raw_all_ts, imagesTr_path, add_zeros=True, is_gt=False, df_path=df_path)
-    select_annotated_frames_mms(split_path_gt_all_ts, labelsTr_path, add_zeros=False, is_gt=True, df_path=df_path)
+    select_annotated_frames_mms(
+        split_path_raw_all_ts,
+        imagesTr_path,
+        add_zeros=True,
+        is_gt=False,
+        df_path=df_path,
+    )
+    select_annotated_frames_mms(
+        split_path_gt_all_ts,
+        labelsTr_path,
+        add_zeros=False,
+        is_gt=True,
+        df_path=df_path,
+    )
 
     labelsTr = subfiles(labelsTr_path)
 
     # create a json file that will be needed by nnUNet to initiate the preprocessing process
     json_dict = OrderedDict()
-    json_dict['name'] = "M&Ms"
-    json_dict['description'] = "short axis cardiac cine MRI segmentation"
-    json_dict['tensorImageSize'] = "4D"
-    json_dict['reference'] = "Campello, Victor M et al. “Multi-Centre, Multi-Vendor and Multi-Disease Cardiac " \
-                             "Segmentation: The M&Ms Challenge.” IEEE transactions on " \
-                             "medical imaging vol. 40,12 (2021): 3543-3554. doi:10.1109/TMI.2021.3090082"
-    json_dict['licence'] = "see M&Ms challenge"
-    json_dict['release'] = "0.0"
-    json_dict['modality'] = {
+    json_dict["name"] = "M&Ms"
+    json_dict["description"] = "short axis cardiac cine MRI segmentation"
+    json_dict["tensorImageSize"] = "4D"
+    json_dict["reference"] = (
+        "Campello, Victor M et al. “Multi-Centre, Multi-Vendor and Multi-Disease Cardiac "
+        "Segmentation: The M&Ms Challenge.” IEEE transactions on "
+        "medical imaging vol. 40,12 (2021): 3543-3554. doi:10.1109/TMI.2021.3090082"
+    )
+    json_dict["licence"] = "see M&Ms challenge"
+    json_dict["release"] = "0.0"
+    json_dict["modality"] = {
         "0": "MRI",
     }
     # labels differ for ACDC challenge
-    json_dict['labels'] = {
-        "0": "background",
-        "1": "LVBP",
-        "2": "LVM",
-        "3": "RV"
-    }
-    json_dict['numTraining'] = len(labelsTr)
-    json_dict['numTest'] = 0
-    json_dict['training'] = [{'image': "./imagesTr/%s" % i.split("/")[-1],
-                              "label": "./labelsTr/%s" % i.split("/")[-1]} for i in labelsTr]
-    json_dict['test'] = []
+    json_dict["labels"] = {"0": "background", "1": "LVBP", "2": "LVM", "3": "RV"}
+    json_dict["numTraining"] = len(labelsTr)
+    json_dict["numTest"] = 0
+    json_dict["training"] = [
+        {
+            "image": "./imagesTr/%s" % i.split("/")[-1],
+            "label": "./labelsTr/%s" % i.split("/")[-1],
+        }
+        for i in labelsTr
+    ]
+    json_dict["test"] = []
 
     save_json(json_dict, os.path.join(out_dir, "dataset.json"))
 
@@ -236,7 +320,6 @@ if __name__ == "__main__":
     # now the data is ready to be preprocessed by the nnUNet
     # the following steps are only needed if you want to reproduce the exact results from the MMS challenge
     #
-
 
     # then preprocess data and plan training.
     # run in terminal
@@ -258,5 +341,3 @@ if __name__ == "__main__":
     # nnUNet_train 3d_fullres nnUNetTrainerV2_MMS Task114_heart_mnms -p nnUNetPlanstargetSpacingForAnisoAxis 0 # for 3d and fold 0
     # and
     # nnUNet_train 2d nnUNetTrainerV2_MMS Task114_heart_mnms 0 # for 2d and fold 0
-
-

@@ -14,10 +14,14 @@
 
 import torch
 
-from nnunet.network_architecture.generic_modular_residual_UNet import FabiansUNet, get_default_network_config
+from nnunet.network_architecture.generic_modular_residual_UNet import (
+    FabiansUNet,
+    get_default_network_config,
+)
 from nnunet.network_architecture.initialization import InitWeights_He
-from nnunet.training.network_training.nnUNet_variants.architectural_variants.nnUNetTrainerV2_ResencUNet_DA3 import \
-    nnUNetTrainerV2_ResencUNet_DA3
+from nnunet.training.network_training.nnUNet_variants.architectural_variants.nnUNetTrainerV2_ResencUNet_DA3 import (
+    nnUNetTrainerV2_ResencUNet_DA3,
+)
 from nnunet.utilities.nd_softmax import softmax_helper
 
 
@@ -29,15 +33,27 @@ class nnUNetTrainerV2_ResencUNet_DA3_BN(nnUNetTrainerV2_ResencUNet_DA3):
         else:
             cfg = get_default_network_config(1, None, norm_type="bn")
 
-        stage_plans = self.plans['plans_per_stage'][self.stage]
-        conv_kernel_sizes = stage_plans['conv_kernel_sizes']
-        blocks_per_stage_encoder = stage_plans['num_blocks_encoder']
-        blocks_per_stage_decoder = stage_plans['num_blocks_decoder']
-        pool_op_kernel_sizes = stage_plans['pool_op_kernel_sizes']
+        stage_plans = self.plans["plans_per_stage"][self.stage]
+        conv_kernel_sizes = stage_plans["conv_kernel_sizes"]
+        blocks_per_stage_encoder = stage_plans["num_blocks_encoder"]
+        blocks_per_stage_decoder = stage_plans["num_blocks_decoder"]
+        pool_op_kernel_sizes = stage_plans["pool_op_kernel_sizes"]
 
-        self.network = FabiansUNet(self.num_input_channels, self.base_num_features, blocks_per_stage_encoder, 2,
-                                   pool_op_kernel_sizes, conv_kernel_sizes, cfg, self.num_classes,
-                                   blocks_per_stage_decoder, True, False, 320, InitWeights_He(1e-2))
+        self.network = FabiansUNet(
+            self.num_input_channels,
+            self.base_num_features,
+            blocks_per_stage_encoder,
+            2,
+            pool_op_kernel_sizes,
+            conv_kernel_sizes,
+            cfg,
+            self.num_classes,
+            blocks_per_stage_decoder,
+            True,
+            False,
+            320,
+            InitWeights_He(1e-2),
+        )
 
         if torch.cuda.is_available():
             self.network.cuda()

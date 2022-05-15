@@ -35,7 +35,15 @@ class FocalLoss(nn.Module):
     :param size_average: (bool, optional) By default, the losses are averaged over each loss element in the batch.
     """
 
-    def __init__(self, apply_nonlin=None, alpha=None, gamma=2, balance_index=0, smooth=1e-5, size_average=True):
+    def __init__(
+        self,
+        apply_nonlin=None,
+        alpha=None,
+        gamma=2,
+        balance_index=0,
+        smooth=1e-5,
+        size_average=True,
+    ):
         super(FocalLoss, self).__init__()
         self.apply_nonlin = apply_nonlin
         self.alpha = alpha
@@ -46,7 +54,7 @@ class FocalLoss(nn.Module):
 
         if self.smooth is not None:
             if self.smooth < 0 or self.smooth > 1.0:
-                raise ValueError('smooth value should be in [0,1]')
+                raise ValueError("smooth value should be in [0,1]")
 
     def forward(self, logit, target):
         if self.apply_nonlin is not None:
@@ -76,7 +84,7 @@ class FocalLoss(nn.Module):
             alpha[self.balance_index] = self.alpha
 
         else:
-            raise TypeError('Not support alpha type')
+            raise TypeError("Not support alpha type")
 
         if alpha.device != logit.device:
             alpha = alpha.to(logit.device)
@@ -90,7 +98,8 @@ class FocalLoss(nn.Module):
 
         if self.smooth:
             one_hot_key = torch.clamp(
-                one_hot_key, self.smooth / (num_class - 1), 1.0 - self.smooth)
+                one_hot_key, self.smooth / (num_class - 1), 1.0 - self.smooth
+            )
         pt = (one_hot_key * logit).sum(1) + self.smooth
         logpt = pt.log()
 
@@ -123,7 +132,15 @@ class FocalLossV2(nn.Module):
     :param size_average: (bool, optional) By default, the losses are averaged over each loss element in the batch.
     """
 
-    def __init__(self, apply_nonlin=None, alpha=None, gamma=2, balance_index=0, smooth=1e-5, size_average=True):
+    def __init__(
+        self,
+        apply_nonlin=None,
+        alpha=None,
+        gamma=2,
+        balance_index=0,
+        smooth=1e-5,
+        size_average=True,
+    ):
         super(FocalLossV2, self).__init__()
         self.apply_nonlin = apply_nonlin
         self.alpha = alpha
@@ -134,7 +151,7 @@ class FocalLossV2(nn.Module):
 
         if self.smooth is not None:
             if self.smooth < 0 or self.smooth > 1.0:
-                raise ValueError('smooth value should be in [0,1]')
+                raise ValueError("smooth value should be in [0,1]")
 
     def forward(self, logit, target):
         if self.apply_nonlin is not None:
@@ -164,7 +181,7 @@ class FocalLossV2(nn.Module):
             alpha[self.balance_index] = self.alpha
 
         else:
-            raise TypeError('Not support alpha type')
+            raise TypeError("Not support alpha type")
 
         if alpha.device != logit.device:
             alpha = alpha.to(logit.device)
@@ -178,7 +195,8 @@ class FocalLossV2(nn.Module):
 
         if self.smooth:
             one_hot_key = torch.clamp(
-                one_hot_key, self.smooth / (num_class - 1), 1.0 - self.smooth)
+                one_hot_key, self.smooth / (num_class - 1), 1.0 - self.smooth
+            )
         pt = (one_hot_key * logit).sum(1) + self.smooth
         logpt = pt.log()
 

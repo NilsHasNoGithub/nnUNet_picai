@@ -23,7 +23,9 @@ def preprocess_dataset(ribfrac_load_path, ribseg_load_path, dataset_save_path, p
     Path(test_labels_save_path).mkdir(parents=True, exist_ok=True)
 
     mask_filenames = load_filenames(mask_load_path)
-    pool.map(partial(preprocess_single, image_load_path=ribfrac_load_path), mask_filenames)
+    pool.map(
+        partial(preprocess_single, image_load_path=ribfrac_load_path), mask_filenames
+    )
 
 
 def preprocess_single(filename, image_load_path):
@@ -36,10 +38,26 @@ def preprocess_single(filename, image_load_path):
     if id > 500:
         image_set = "imagesTs"
         mask_set = "labelsTs"
-    image, _, _, _ = load_image(join(image_load_path, image_set, "RibFrac{}-image.nii.gz".format(id)), return_meta=True, is_seg=False)
+    image, _, _, _ = load_image(
+        join(image_load_path, image_set, "RibFrac{}-image.nii.gz".format(id)),
+        return_meta=True,
+        is_seg=False,
+    )
     mask, spacing, _, _ = load_image(filename, return_meta=True, is_seg=True)
-    save_image(join(dataset_save_path, image_set, "RibSeg_" + str(id).zfill(4) + "_0000.nii.gz"), image, spacing=spacing, is_seg=False)
-    save_image(join(dataset_save_path, mask_set, "RibSeg_" + str(id).zfill(4) + ".nii.gz"), mask, spacing=spacing, is_seg=True)
+    save_image(
+        join(
+            dataset_save_path, image_set, "RibSeg_" + str(id).zfill(4) + "_0000.nii.gz"
+        ),
+        image,
+        spacing=spacing,
+        is_seg=False,
+    )
+    save_image(
+        join(dataset_save_path, mask_set, "RibSeg_" + str(id).zfill(4) + ".nii.gz"),
+        mask,
+        spacing=spacing,
+        is_seg=True,
+    )
 
 
 def load_filenames(img_dir, extensions=None):
@@ -67,22 +85,35 @@ def load_image(filepath, return_meta=False, is_seg=False):
 
     if is_seg:
         image_np = np.rint(image_np)
-        image_np = image_np.astype(np.int8)  # In special cases segmentations can contain negative labels, so no np.uint8
+        image_np = image_np.astype(
+            np.int8
+        )  # In special cases segmentations can contain negative labels, so no np.uint8
 
     if not return_meta:
         return image_np
     else:
         spacing = image.GetSpacing()
         keys = image.GetMetaDataKeys()
-        header = {key:image.GetMetaData(key) for key in keys}
+        header = {key: image.GetMetaData(key) for key in keys}
         affine = None  # How do I get the affine transform with SimpleITK? With NiBabel it is just image.affine
         return image_np, spacing, affine, header
 
 
-def save_image(filename, image, spacing=None, affine=None, header=None, is_seg=False, mp_pool=None, free_mem=False):
+def save_image(
+    filename,
+    image,
+    spacing=None,
+    affine=None,
+    header=None,
+    is_seg=False,
+    mp_pool=None,
+    free_mem=False,
+):
     if is_seg:
         image = np.rint(image)
-        image = image.astype(np.int8)  # In special cases segmentations can contain negative labels, so no np.uint8
+        image = image.astype(
+            np.int8
+        )  # In special cases segmentations can contain negative labels, so no np.uint8
 
     image = sitk.GetImageFromArray(image)
 
@@ -101,7 +132,14 @@ def save_image(filename, image, spacing=None, affine=None, header=None, is_seg=F
             del image
             gc.collect()
     else:
-        mp_pool.apply_async(_save, args=(filename, image, free_mem,))
+        mp_pool.apply_async(
+            _save,
+            args=(
+                filename,
+                image,
+                free_mem,
+            ),
+        )
         if free_mem:
             del image
             gc.collect()
@@ -137,4 +175,11 @@ if __name__ == "__main__":
     pool.join()
     print("All tasks finished.")
 
-    generate_dataset_json(join(dataset_save_path, 'dataset.json'), join(dataset_save_path, "imagesTr"), None, ('CT',), {0: 'bg', 1: 'rib'}, "Task156_RibSeg")
+    generate_dataset_json(
+        join(dataset_save_path, "dataset.json"),
+        join(dataset_save_path, "imagesTr"),
+        None,
+        ("CT",),
+        {0: "bg", 1: "rib"},
+        "Task156_RibSeg",
+    )
