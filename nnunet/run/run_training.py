@@ -160,6 +160,15 @@ def main():
         "file, for example model_final_checkpoint.model). Will only be used when actually training. "
         "Optional. Beta. Use with caution.",
     )
+    parser.add_argument(
+        "--trainer_kwargs",
+        required=False,
+        default="{}",
+        help="Use a dictionary in string format to specify keyword arguments. This will get"
+        " parsed into a dictionary, the values get correctly parsed to the data format"
+        " and passed to the trainer. Example (backslash included): \n"
+        r"--trainer_kwargs {\"class_weights\":[0,2.00990337,1.42540704,2.13387239,0.85529504,0.592059,0.30040984,8.26874351],\"weight_dc\":0.3,\"weight_ce\":0.7}",
+    )
 
     args = parser.parse_args()
 
@@ -241,6 +250,7 @@ def main():
         unpack_data=decompress_data,
         deterministic=deterministic,
         fp16=run_mixed_precision,
+        **json.loads(args.trainer_kwargs.replace("\\", ""))
     )
     if args.disable_saving:
         trainer.save_final_checkpoint = (
